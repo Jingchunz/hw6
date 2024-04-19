@@ -1,6 +1,6 @@
 ---
 title: "Homework 6"
-author: "[Insert your name here]{style='background-color: yellow;'}"
+author: "[Jingchun Zhang]{style='background-color: yellow;'}"
 toc: true
 title-block-banner: true
 title-block-style: default
@@ -8,7 +8,6 @@ execute:
   freeze: true
   cache: true
 # format:
-  html: # comment this line to get pdf
   pdf: 
     fig-width: 7
     fig-height: 7
@@ -68,10 +67,19 @@ Read the data file as a tibble in R. Preprocess the data such that:
 2. all column names to lower case for consistency
 3. Any observations with missing values are dropped
 
-```R
-path <- "data/spending.csv"
+```{R}
+library(readr)
+library(dplyr)
 
-df <- ... # Insert your code here
+rm(list=ls())
+path <- "/Users/zhangjingchun/Desktop/spending.csv"
+
+df <- read_csv(path, show_col_types = FALSE) %>%
+  mutate_if(is.character, as.factor) %>%  
+  drop_na()  
+
+str(df)
+summary(df)
 ```
 
 ---
@@ -80,9 +88,18 @@ df <- ... # Insert your code here
 
 Visualize the correlation between the variables using the `corrplot()` function. What do you observe? What does this mean for the model?
 
-```R
-df_x  %>% ... # Insert your code here
+```{R}
+library(dplyr)
+library(corrplot)
+
+df_x <- df 
+
+df_x %>%
+  cor() %>%
+  corrplot(method = "circle")
+
 ```
+Ans: The correlation plot shows clusters of variables with strong positive correlations, indicating related spending habits. A few pairs have negative correlations, while many are uncorrelated. For modeling, highly correlated variables can cause multicollinearity, potentially affecting the model's reliability. Thus, we might consider reducing dimensionality or selecting fewer, non-redundant variables for accurate income prediction.
 
 ---
 
@@ -90,74 +107,106 @@ df_x  %>% ... # Insert your code here
 
 Run a linear regression model to predict the `income` variable using the remaining predictors. Interpret the coefficients and summarize your results. 
 
-
-```R
-... # Insert your code here
+```{R}
+model <- lm(income ~ ., data = df_x)
+summary(model)
 ```
-
----
-
-###### 1.3 (5 points)
-
-Diagnose the model using the `vif()` function. What do you observe? What does this mean for the model?
-
-```R
-... # Insert your code here
-```
+Ans: The linear regression model has an extremely high R-squared value of 0.9999, suggesting that the model explains nearly all the variability in the income variable using the predictors. Most coefficients have a p-value less than 0.05, indicating they are statistically significant contributors to predicting income. For example, electronics and video_games have very high positive coefficients, suggesting strong positive impacts on income prediction. Conversely, a negative coefficient like the one for vegetables suggests a small but significant negative association with income. The F-statistic is very large with a p-value less than 2.2e-16, showing that the overall model is highly significant. This model seems to perform exceptionally well, but such a high R-squared may also indicate overfitting to this particular dataset.
 
 ---
 
 ###### 1.4 (5 points)
 
-Perform PCA using the `princomp` function in R. Print the summary of the PCA object.
+Diagnose the model using the `vif()` function. What do you observe? What does this mean for the model?
 
-```R
-pca <- ... # Insert your code here
-... # Insert your code here
+```{R}
+library(car)
+
+vif_values <- vif(model)
+print(vif_values)
 ```
+Ans: The VIF results show values far above 5 for all predictors, indicating high multicollinearity within the model. This means that many of the predictor variables are highly correlated with each other, which can inflate the standard errors of the coefficients and make the model less reliable. It suggests that the model's predictive power might be compromised, and it would benefit from reducing multicollinearity, perhaps through variable selection or dimensionality reduction techniques like PCA.
 
 ---
 
 ###### 1.5 (5 points)
 
-Make a screeplot of the proportion of variance explained by each principal component. How many principal components would you choose to keep? Why?
+Perform PCA using the `princomp` function in R. Print the summary of the PCA object.
 
-```R
-... # Insert your code here
+```{R}
+library(stats)
+
+pca <- princomp(df_x, cor = TRUE)
+summary(pca)
 ```
+Ans: The PCA summary indicates that the first four principal components account for most of the variance (over 99.8%) in the dataset. Specifically, Comp.1 explains about 32.9% of the variance, Comp.2 explains 29.7%, Comp.3 explains 24.8%, and Comp.4 explains 12.4%. The remaining components each explain a very small proportion of the variance, suggesting that they contribute little to the overall variability in the data.
 
+This means that the dataset's dimensionality could potentially be reduced to just the first four principal components without losing significant information. This reduction could greatly simplify any subsequent modeling, potentially improving model performance and interpretability.
+
+---
 
 ###### 1.6 (5 points)
 
+Make a screeplot of the proportion of variance explained by each principal component. How many principal components would you choose to keep? Why?
+
+```{R}
+plot(pca, type = "lines")
+```
+Ans:The scree plot illustrates a sharp decline in the variances explained by the first few principal components before it levels off, which is indicative of the 'elbow'. The most noticeable change in slope occurs after Comp.4, suggesting that the first four components are the most significant.
+
+I would choose to keep the first four principal components because they capture the majority of the variability in the data, as evidenced by the steep drop in the plot, which levels off after the fourth component. This approach reduces dimensionality while retaining the components that contain the most information.
+
+###### 1.7 (5 points)
+
 By setting any factor loadings below $0.2$ to $0$, summarize the factor loadings for the principal components that you chose to keep. 
 
-```R
-clean_loadings <- ... # Insert your code here
+```{R}
+library(stats)
+
+loadings <- loadings(pca)
+clean_loadings <- apply(loadings[, 1:4], 2, function(x) ifelse(abs(x) < 0.2, 0, x))
+clean_loadings <- matrix(clean_loadings, nrow = nrow(loadings), ncol = 4)
+
+print(clean_loadings)
 ```
 
 
 Visualize the factor loadings. 
 
-```R
-... # Insert your code here
+```{R}
+library(gplots)
+heatmap.2(clean_loadings, dendrogram = "none", Rowv = FALSE, Colv = FALSE, 
+          col = bluered(20), trace = "none", key = FALSE, density.info = "none")
 ```
-
+Ans: After setting any factor loadings below 0.2 to zero, the remaining significant loadings suggest a distinct relationship between the variables and the first four principal components. Components 1 and 4 have the most substantial loadings, indicating they are the most influential in terms of the data's variance. Component 1 is strongly influenced by variables represented by rows 1, 5, 10, and so on, while Component 4 is predominantly influenced by rows 1, 9, 19, etc. This implies that these components capture most of the essential patterns in the data.
 ---
 
-###### 1.7 (15 points)
+###### 1.8 (15 points)
 
 Based on the factor loadings, what do you think the principal components represent? 
 
 Provide an interpreation for each principal component you chose to keep.
 
+Ans:
+Based on the factor loadings and the heatmap visualization, each of the first four principal components likely represents a different underlying pattern of spending behavior:
+
+Principal Component 1: This component has significant loadings on variables like accessories, beverages, and software, which may represent discretionary or luxury spending habits.
+Principal Component 2: With loadings on accommodation, books, and coffee shops, this could reflect a pattern of regular, perhaps daily, spending activities or lifestyle expenses.
+Principal Component 3: Significant loadings on audio equipment, cameras, and fast food might indicate a trend towards entertainment and convenience-focused spending.
+Principal Component 4: Strong loadings on accessories, coffee shops, and jewelry suggest this component might be capturing social or leisure spending, possibly linked to social status or activities.
+
 ---
 
-###### 1.8 (10 points)
+###### 1.9 (10 points)
 
 Create a new data frame with the original response variable `income` and the principal components you chose to keep. Call this data frame `df_pca`.
 
 ```R
 ... # Insert your code here
+```
+```{R}
+scores <- pca$scores[, 1:4]
+df_pca <- data.frame(income = df$income, scores)
 ```
 
 Fit a regression model to predict the `income` variable using the principal components you chose to keep. Interpret the coefficients and summarize your results. 
@@ -165,6 +214,12 @@ Fit a regression model to predict the `income` variable using the principal comp
 ```R
 ... # Insert your code here
 ```
+```{R}
+model_pca <- lm(income ~ ., data = df_pca)
+summary_pca <- summary(model_pca)
+print(summary_pca)
+```
+Ans:The coefficients from the PCA-based model suggest that Comp.1 and Comp.3 have a positive effect on income, with Comp.1 having a moderate effect and Comp.3 a very strong effect. Comp.2 and Comp.4 also impact income but to a lesser extent. The model has an extremely high R-squared value, similar to the original, indicating that it explains nearly all the variance in income with just these four components.
 
 Compare the results of the regression model in 1.3 and 1.9. What do you observe? What does this mean for the model?
 
@@ -172,13 +227,36 @@ Compare the results of the regression model in 1.3 and 1.9. What do you observe?
 ... # Insert your code here
 
 ```
+```{R}
+r_squared_comparison <- data.frame(
+  Original = summary(model)$r.squared, 
+  PCA_Based = summary(model_pca)$r.squared
+)
+
+coef_comparison <- data.frame(
+  Original = coef(model), 
+  PCA_Based = coef(model_pca)
+)
+
+print(r_squared_comparison)
+print(coef_comparison)
+```
+Ans:The R-squared values of the original (0.9999306) and PCA-based (0.9999183) models are nearly identical, suggesting both models explain almost all the variability in income. The PCA-based model simplifies the predictor space significantly, using only four components instead of all original variables. The coefficients from the original model represent the direct relationship with income for each spending category, while in the PCA model, they represent the relationship with the underlying factors identified by PCA. Despite fewer variables, the PCA model maintains a high explanatory power, indicating that these principal components capture the essential information needed to predict income effectively.
+
 ---
 
 ###### 1.10 (10 points)
 
 Based on your interpretation of the principal components from Question 1.7, provide an interpretation of the regression model in Question 1.9.
 
+Ans:
 
+Comp.1 (Estimate: 17.32435): This component, which may represent discretionary or luxury spending habits, has a positive association with income. The positive coefficient suggests that as spending on luxury items increases, so does income, which could indicate that individuals who spend more on these items tend to have higher incomes.
+Comp.2 (Estimate: -1.68233): Reflecting regular spending or lifestyle expenses, the negative coefficient indicates that as expenses on everyday needs increase, income decreases slightly. This could mean that individuals with higher day-to-day living costs may have a marginally lower income.
+Comp.3 (Estimate: 90.02873): This component seems to capture entertainment and convenience-focused spending. The strong positive coefficient is the largest among the components, suggesting a significant relationship between income and spending on these categories. It may indicate that individuals who spend more on entertainment and convenience also have a substantially higher income.
+Comp.4 (Estimate: 7.65615): Likely linked to social or leisure spending, the positive coefficient means that such spending habits also have a positive relationship with income, but less so than Comp.1 and Comp.3.
+
+The positive coefficients on Comp.1, Comp.3, and Comp.4 suggest that as individuals spend more on discretionary, entertainment, and social activities, their income tends to be higher. Comp.2's negative relationship could highlight a contrasting spending behavior where necessary and daily costs are inversely related to income. This model captures different aspects of consumer behavior and how they relate to income levels.
 
 ---
 
